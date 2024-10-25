@@ -3,8 +3,14 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	pongWait     = 60 * time.Second
+	pingInterval = (pongWait * 9) / 10
 )
 
 type ClientList map[*Client]bool
@@ -57,6 +63,8 @@ func (c *Client) writeMessages() {
 	defer func() {
 		c.hub.removeClient(c)
 	}()
+
+	ticker := time.NewTicker(pingInterval)
 	for {
 		select {
 		case message, ok := <-c.egress:
@@ -77,6 +85,12 @@ func (c *Client) writeMessages() {
 				log.Printf("Failed to send message: %v", err)
 			}
 			log.Println("Message sent")
+		case <-ticker.C:
+			log.Println("ping")
+			if err := c.connection.WriteMessage(websocket.PingMessage, []byte("")); err != nil {
+				log.Println("Ping error: ", err)
+				return
+			}
 		}
 
 	}
